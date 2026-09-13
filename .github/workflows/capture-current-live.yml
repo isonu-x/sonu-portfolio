@@ -1,0 +1,220 @@
+name: Capture current live portfolio completely
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/capture-current-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  LIVE_URL: https://project.isonu-x.chatgpt.site
+
+jobs:
+  capture:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@latest >/dev/null 2>&1
+          npx playwright install --with-deps chromium
+      - name: Capture browser network and recover sourcemaps
+        shell: bash
+        run: |
+          cat > /tmp/capture.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import fs from 'fs';
+          import path from 'path';
+          import crypto from 'crypto';
+
+          const BASE = process.env.LIVE_URL.replace(/\/$/, '');
+          const ORIGIN = new URL(BASE).origin;
+          const OUT = path.resolve('CURRENT_DEPLOYED_PORTFOLIO');
+          fs.rmSync(OUT, { recursive: true, force: true });
+          fs.mkdirSync(OUT, { recursive: true });
+          const seen = new Map();
+          const manifest = [];
+
+          const sha = b => crypto.createHash('sha256').update(b).digest('hex');
+          function safePath(url, contentType='') {
+            const u = new URL(url);
+            let p = decodeURIComponent(u.pathname || '/');
+            if (p.endsWith('/')) p += 'index.html';
+            if (p === '') p = '/index.html';
+            let rel = p.replace(/^\/+/, '') || 'index.html';
+            if (!path.extname(rel) && contentType.includes('text/html')) rel = path.join(rel, 'index.html');
+            if (u.search) {
+              const q = crypto.createHash('sha1').update(u.search).digest('hex').slice(0,10);
+              const ext = path.extname(rel);
+              rel = ext ? rel.slice(0,-ext.length) + `__q_${q}` + ext : rel + `__q_${q}`;
+            }
+            return rel;
+          }
+          async function saveResponse(resp) {
+            try {
+              const url = resp.url();
+              const u = new URL(url);
+              if (u.origin !== ORIGIN) return;
+              if (resp.status() < 200 || resp.status() >= 400) return;
+              const headers = await resp.allHeaders();
+              const ct = headers['content-type'] || '';
+              const body = await resp.body();
+              const rel = safePath(url, ct);
+              const key = url;
+              if (seen.has(key) && seen.get(key) === sha(body)) return;
+              seen.set(key, sha(body));
+              const dest = path.join(OUT, 'deployed', rel);
+              fs.mkdirSync(path.dirname(dest), { recursive: true });
+              fs.writeFileSync(dest, body);
+              manifest.push({ url, path: path.relative(OUT, dest).replaceAll('\\','/'), status: resp.status(), contentType: ct, bytes: body.length, sha256: sha(body) });
+            } catch (e) {
+              console.log('saveResponse error', String(e));
+            }
+          }
+
+          const browser = await chromium.launch({ headless: true });
+          const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'allow' });
+          const page = await ctx.newPage();
+          page.on('response', saveResponse);
+
+          async function settle() {
+            await page.waitForLoadState('domcontentloaded').catch(()=>{});
+            await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(()=>{});
+            await page.waitForTimeout(1200);
+          }
+          async function visit(url) {
+            console.log('VISIT', url);
+            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(e => console.log('goto', String(e)));
+            await settle();
+          }
+
+          await visit(BASE + '/');
+          const hrefs = await page.locator('a[href]').evaluateAll((els, origin) => els.map(a => a.href).filter(h => { try { return new URL(h).origin === origin; } catch { return false; } }), ORIGIN).catch(()=>[]);
+
+          const clickTexts = ['Open Flowboard demo','Open Studio Store demo','Open Sortscape demo','Ask about Sonu','Chat with portfolio guide','View full resume'];
+          for (const t of clickTexts) {
+            try {
+              const loc = page.getByText(t, { exact: false }).first();
+              if (await loc.count()) {
+                await loc.click({ timeout: 3000 }).catch(()=>{});
+                await page.waitForTimeout(900);
+              }
+            } catch {}
+          }
+
+          const buttons = await page.locator('button').count().catch(()=>0);
+          for (let i=0; i<Math.min(buttons, 30); i++) {
+            try {
+              const b = page.locator('button').nth(i);
+              const txt = (await b.innerText({ timeout: 1000 }).catch(()=>'' )).trim();
+              if (!txt || /delete|remove|reset|copy email/i.test(txt)) continue;
+              await b.click({ timeout: 1500 }).catch(()=>{});
+              await page.waitForTimeout(250);
+            } catch {}
+          }
+
+          for (const h of [...new Set(hrefs)]) {
+            try {
+              const u = new URL(h);
+              if (u.origin === ORIGIN && !u.hash && !/\.(pdf|png|jpe?g|webp|svg|ico|zip)$/i.test(u.pathname)) await visit(h);
+            } catch {}
+          }
+          await visit(BASE + '/resume');
+          await visit(BASE + '/api/resume');
+
+          // Revisit home once more after interactions to catch chunks loaded after state changes.
+          await visit(BASE + '/');
+          await browser.close();
+
+          // Probe sourcemaps for every captured JS/CSS file and recover exact sourcesContent where available.
+          const deployedDir = path.join(OUT, 'deployed');
+          const files = [];
+          function walk(d) { for (const e of fs.readdirSync(d, { withFileTypes:true })) { const p=path.join(d,e.name); e.isDirectory()?walk(p):files.push(p); } }
+          if (fs.existsSync(deployedDir)) walk(deployedDir);
+
+          async function get(url) {
+            try {
+              const r = await fetch(url, { redirect:'follow', headers:{'user-agent':'Mozilla/5.0'} });
+              if (!r.ok) return null;
+              return { buf: Buffer.from(await r.arrayBuffer()), ct: r.headers.get('content-type')||'', finalUrl:r.url };
+            } catch { return null; }
+          }
+          const textExt = new Set(['.js','.mjs','.cjs','.css']);
+          const existingUrls = new Set(manifest.map(x=>x.url));
+          for (const f of files) {
+            const ext = path.extname(f).toLowerCase();
+            if (!textExt.has(ext)) continue;
+            const rel = path.relative(deployedDir, f).replaceAll('\\','/');
+            const sourceUrl = manifest.find(x => x.path === 'deployed/' + rel)?.url;
+            if (!sourceUrl) continue;
+            const text = fs.readFileSync(f, 'utf8');
+            let mapUrl = null;
+            const m = text.match(/[#@]\s*sourceMappingURL\s*=\s*([^\s*]+)/);
+            if (m) { try { mapUrl = new URL(m[1], sourceUrl).href; } catch {} }
+            const probes = [...new Set([mapUrl, sourceUrl + '.map'].filter(Boolean))];
+            for (const purl of probes) {
+              if (existingUrls.has(purl)) continue;
+              const got = await get(purl);
+              if (!got) continue;
+              const relMap = safePath(purl, got.ct || 'application/json');
+              const dest = path.join(OUT,'sourcemaps',relMap);
+              fs.mkdirSync(path.dirname(dest), {recursive:true});
+              fs.writeFileSync(dest, got.buf);
+              manifest.push({url:purl,path:path.relative(OUT,dest).replaceAll('\\','/'),status:200,contentType:got.ct,bytes:got.buf.length,sha256:sha(got.buf)});
+              try {
+                const obj = JSON.parse(got.buf.toString('utf8'));
+                if (Array.isArray(obj.sources) && Array.isArray(obj.sourcesContent)) {
+                  obj.sources.forEach((src, i) => {
+                    const content = obj.sourcesContent[i];
+                    if (content == null) return;
+                    let clean = src.replace(/^webpack:\/\//,'').replace(/^vite:\/\//,'').replace(/^\/+/, '').replaceAll('..','__');
+                    clean = clean.replace(/[<>:"|?*]/g,'_');
+                    const outp = path.join(OUT,'recovered-source',clean || `source-${i}.txt`);
+                    fs.mkdirSync(path.dirname(outp), {recursive:true});
+                    fs.writeFileSync(outp, content);
+                  });
+                }
+              } catch {}
+              break;
+            }
+          }
+
+          manifest.sort((a,b)=>a.path.localeCompare(b.path));
+          fs.writeFileSync(path.join(OUT,'MANIFEST.json'), JSON.stringify(manifest,null,2));
+          fs.writeFileSync(path.join(OUT,'README.txt'), `Fresh browser/network capture of ${BASE}\nGenerated from the currently deployed site, not from a recreated local project.\nFiles under deployed/ are exact HTTP response bodies captured from the live site.\nIf sourcemaps were publicly available, they are under sourcemaps/ and exact sourcesContent is under recovered-source/.\nCaptured resources: ${manifest.length}\n`);
+          console.log('CAPTURED', manifest.length, 'resources');
+          console.log('RECOVERED SOURCE FILES', fs.existsSync(path.join(OUT,'recovered-source')) ? (()=>{let n=0;function c(d){for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);e.isDirectory()?c(p):n++}}c(path.join(OUT,'recovered-source'));return n})() : 0);
+          JS
+          node /tmp/capture.mjs
+
+      - name: Package current capture
+        run: |
+          rm -f CURRENT_DEPLOYED_PORTFOLIO.zip
+          zip -qr CURRENT_DEPLOYED_PORTFOLIO.zip CURRENT_DEPLOYED_PORTFOLIO
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CURRENT_DEPLOYED_PORTFOLIO
+          path: CURRENT_DEPLOYED_PORTFOLIO.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Commit fresh capture
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -rf current-live
+          mv CURRENT_DEPLOYED_PORTFOLIO current-live
+          git add current-live CURRENT_DEPLOYED_PORTFOLIO.zip
+          git commit -m 'Capture exact current deployed portfolio files' || exit 0
+          git push
