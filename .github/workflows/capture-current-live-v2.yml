@@ -1,0 +1,177 @@
+name: Capture current live portfolio v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/capture-current-live-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  LIVE_URL: https://project.isonu-x.chatgpt.site
+
+jobs:
+  capture:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@latest >/dev/null 2>&1
+          npx playwright install --with-deps chromium
+      - name: Fresh browser-level capture
+        shell: bash
+        run: |
+          cat > capture.cjs <<'JS'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+          const crypto = require('crypto');
+
+          const BASE = process.env.LIVE_URL.replace(/\/$/, '');
+          const ORIGIN = new URL(BASE).origin;
+          const OUT = path.resolve('CURRENT_DEPLOYED_PORTFOLIO');
+          fs.rmSync(OUT, {recursive:true, force:true});
+          fs.mkdirSync(OUT, {recursive:true});
+          const manifest = [];
+          const seen = new Map();
+          const hash = b => crypto.createHash('sha256').update(b).digest('hex');
+
+          function localPath(url, contentType='') {
+            const u = new URL(url);
+            let p = decodeURIComponent(u.pathname || '/');
+            if (p.endsWith('/')) p += 'index.html';
+            let rel = p.replace(/^\/+/, '') || 'index.html';
+            if (!path.extname(rel) && contentType.includes('text/html')) rel = path.join(rel,'index.html');
+            if (u.search) {
+              const q = crypto.createHash('sha1').update(u.search).digest('hex').slice(0,10);
+              const ext = path.extname(rel);
+              rel = ext ? rel.slice(0,-ext.length)+`__q_${q}`+ext : rel+`__q_${q}`;
+            }
+            return rel;
+          }
+
+          async function saveResponse(resp) {
+            try {
+              const url = resp.url();
+              const u = new URL(url);
+              if (u.origin !== ORIGIN || resp.status() < 200 || resp.status() >= 400) return;
+              const headers = await resp.allHeaders();
+              const ct = headers['content-type'] || '';
+              const body = await resp.body();
+              const h = hash(body);
+              if (seen.get(url) === h) return;
+              seen.set(url,h);
+              const rel = localPath(url,ct);
+              const dest = path.join(OUT,'deployed',rel);
+              fs.mkdirSync(path.dirname(dest),{recursive:true});
+              fs.writeFileSync(dest,body);
+              manifest.push({url,path:path.relative(OUT,dest).replaceAll('\\','/'),status:resp.status(),contentType:ct,bytes:body.length,sha256:h});
+            } catch (e) { console.log('response error', String(e)); }
+          }
+
+          (async()=>{
+            const browser = await chromium.launch({headless:true});
+            const ctx = await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'allow'});
+            const page = await ctx.newPage();
+            page.on('response', r => saveResponse(r));
+
+            async function visit(url) {
+              console.log('VISIT',url);
+              await page.goto(url,{waitUntil:'domcontentloaded',timeout:45000}).catch(e=>console.log('goto',String(e)));
+              await page.waitForLoadState('networkidle',{timeout:12000}).catch(()=>{});
+              await page.waitForTimeout(800);
+            }
+
+            await visit(BASE+'/');
+            const internal = await page.locator('a[href]').evaluateAll((els,origin)=>[...new Set(els.map(a=>a.href).filter(h=>{try{return new URL(h).origin===origin}catch{return false}}))],ORIGIN).catch(()=>[]);
+            for (const label of ['Open Flowboard demo','Open Studio Store demo','Open Sortscape demo','Ask about Sonu','Chat with portfolio guide']) {
+              const loc = page.getByText(label,{exact:false}).first();
+              if (await loc.count().catch(()=>0)) {
+                await loc.click({timeout:2500}).catch(()=>{});
+                await page.waitForTimeout(700);
+                await page.keyboard.press('Escape').catch(()=>{});
+              }
+            }
+            for (const h of internal) {
+              try {
+                const u = new URL(h);
+                if (!u.hash && !/\.(png|jpe?g|webp|svg|ico|pdf|zip)$/i.test(u.pathname)) await visit(h);
+              } catch {}
+            }
+            await visit(BASE+'/resume');
+            await visit(BASE+'/api/resume');
+            await visit(BASE+'/');
+            await browser.close();
+
+            const deployed = path.join(OUT,'deployed');
+            const files=[];
+            function walk(d){if(!fs.existsSync(d))return;for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);e.isDirectory()?walk(p):files.push(p)}}
+            walk(deployed);
+
+            async function fetchBuf(url){try{const r=await fetch(url,{redirect:'follow',headers:{'user-agent':'Mozilla/5.0'}});if(!r.ok)return null;return {buf:Buffer.from(await r.arrayBuffer()),ct:r.headers.get('content-type')||''}}catch{return null}}
+            for (const f of files) {
+              if (!['.js','.mjs','.cjs','.css'].includes(path.extname(f).toLowerCase())) continue;
+              const rel=path.relative(deployed,f).replaceAll('\\','/');
+              const rec=manifest.find(x=>x.path==='deployed/'+rel);
+              if(!rec)continue;
+              const txt=fs.readFileSync(f,'utf8');
+              const m=txt.match(/[#@]\s*sourceMappingURL\s*=\s*([^\s*]+)/);
+              const probes=[];
+              if(m){try{probes.push(new URL(m[1],rec.url).href)}catch{}}
+              probes.push(rec.url+'.map');
+              for(const mapUrl of [...new Set(probes)]){
+                const got=await fetchBuf(mapUrl); if(!got)continue;
+                const dest=path.join(OUT,'sourcemaps',localPath(mapUrl,got.ct||'application/json'));
+                fs.mkdirSync(path.dirname(dest),{recursive:true}); fs.writeFileSync(dest,got.buf);
+                manifest.push({url:mapUrl,path:path.relative(OUT,dest).replaceAll('\\','/'),status:200,contentType:got.ct,bytes:got.buf.length,sha256:hash(got.buf)});
+                try{
+                  const obj=JSON.parse(got.buf.toString('utf8'));
+                  if(Array.isArray(obj.sources)&&Array.isArray(obj.sourcesContent)) obj.sources.forEach((src,i)=>{
+                    if(obj.sourcesContent[i]==null)return;
+                    let clean=src.replace(/^webpack:\/\//,'').replace(/^vite:\/\//,'').replace(/^\/+/, '').replaceAll('..','__').replace(/[<>:"|?*]/g,'_');
+                    const p=path.join(OUT,'recovered-source',clean||`source-${i}.txt`);
+                    fs.mkdirSync(path.dirname(p),{recursive:true}); fs.writeFileSync(p,obj.sourcesContent[i]);
+                  });
+                }catch{}
+                break;
+              }
+            }
+
+            manifest.sort((a,b)=>a.path.localeCompare(b.path));
+            fs.writeFileSync(path.join(OUT,'MANIFEST.json'),JSON.stringify(manifest,null,2));
+            let recovered=0; if(fs.existsSync(path.join(OUT,'recovered-source'))){const a=[];function w(d){for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);e.isDirectory()?w(p):a.push(p)}}w(path.join(OUT,'recovered-source'));recovered=a.length}
+            fs.writeFileSync(path.join(OUT,'README.txt'),`Fresh browser capture from ${BASE}\nThis package was fetched from the current deployed website.\nExact HTTP response files are in deployed/.\nPublic sourcemaps, if available, are in sourcemaps/.\nExact source files recovered from sourcesContent, if available, are in recovered-source/.\nCaptured resources: ${manifest.length}\nRecovered source files: ${recovered}\n`);
+            console.log('CAPTURED_RESOURCES='+manifest.length);
+            console.log('RECOVERED_SOURCE_FILES='+recovered);
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node capture.cjs
+          rm -f capture.cjs package.json package-lock.json
+
+      - name: Create ZIP
+        run: zip -qr CURRENT_DEPLOYED_PORTFOLIO.zip CURRENT_DEPLOYED_PORTFOLIO
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: CURRENT_DEPLOYED_PORTFOLIO_V2
+          path: CURRENT_DEPLOYED_PORTFOLIO.zip
+          retention-days: 30
+          if-no-files-found: error
+      - name: Commit capture to GitHub
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -rf current-live
+          mv CURRENT_DEPLOYED_PORTFOLIO current-live
+          git add current-live CURRENT_DEPLOYED_PORTFOLIO.zip
+          git commit -m 'Fresh browser capture of current deployed portfolio' || exit 0
+          git push
