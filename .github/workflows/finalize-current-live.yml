@@ -1,0 +1,135 @@
+name: Finalize complete current live portfolio
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/finalize-current-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  LIVE_URL: https://project.isonu-x.chatgpt.site
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch direct current assets and endpoints
+        run: |
+          python -m pip install --disable-pip-version-check requests beautifulsoup4 >/dev/null
+          python - <<'PY'
+          import hashlib, json, os, re
+          from pathlib import Path
+          from urllib.parse import urljoin, urlparse, urldefrag
+          import requests
+          from bs4 import BeautifulSoup
+
+          BASE=os.environ['LIVE_URL'].rstrip('/')+'/'
+          HOST=urlparse(BASE).netloc
+          ROOT=Path('current-live')
+          DEP=ROOT/'deployed'
+          DEP.mkdir(parents=True,exist_ok=True)
+          s=requests.Session(); s.headers.update({'User-Agent':'Mozilla/5.0 (compatible; CompletePortfolioExport/1.0)','Accept':'*/*'})
+
+          manifest=[]
+          mf=ROOT/'MANIFEST.json'
+          if mf.exists():
+              try: manifest=json.loads(mf.read_text('utf-8'))
+              except: manifest=[]
+
+          by_url={x.get('url'):x for x in manifest if x.get('url')}
+          def h(b): return hashlib.sha256(b).hexdigest()
+          def target(url,ctype=''):
+              p=urlparse(url).path or '/'
+              if p.endswith('/'): p+='index.html'
+              rel=p.lstrip('/') or 'index.html'
+              if not Path(rel).suffix and 'text/html' in ctype: rel += '/index.html'
+              return DEP/rel
+          def fetch(url, force_path=None):
+              try:
+                  r=s.get(url,timeout=30,allow_redirects=True)
+                  if r.status_code!=200 or urlparse(r.url).netloc!=HOST: return None
+                  ctype=(r.headers.get('content-type') or '').split(';')[0]
+                  dest=Path(force_path) if force_path else target(r.url,ctype)
+                  dest.parent.mkdir(parents=True,exist_ok=True); dest.write_bytes(r.content)
+                  rec={'url':r.url,'path':dest.relative_to(ROOT).as_posix(),'status':200,'contentType':r.headers.get('content-type') or ctype,'bytes':len(r.content),'sha256':h(r.content)}
+                  by_url[r.url]=rec
+                  print('SAVED',r.url,'->',dest,len(r.content))
+                  return r
+              except Exception as e:
+                  print('ERROR',url,e); return None
+
+          # Canonical pages and app endpoints, freshly fetched now.
+          root=fetch(BASE, DEP/'index.html')
+          resume=fetch(urljoin(BASE,'resume'), DEP/'resume/index.html')
+          fetch(urljoin(BASE,'favicon.svg'), DEP/'favicon.svg')
+          fetch(urljoin(BASE,'sonu-banner.png'), DEP/'sonu-banner.png')
+          fetch(urljoin(BASE,'api/resume'), DEP/'api/resume')
+          fetch(urljoin(BASE,'api/profile'), DEP/'api/profile')
+          fetch(urljoin(BASE,'api/owner'), DEP/'api/owner')
+
+          q=[]; queued=set()
+          def add(raw,parent):
+              if not raw or raw.startswith(('data:','blob:','mailto:','tel:','javascript:','#')): return
+              try:
+                  u,_=urldefrag(urljoin(parent,raw)); p=urlparse(u)
+                  if p.scheme in ('http','https') and p.netloc==HOST and u not in queued:
+                      queued.add(u); q.append(u)
+              except: pass
+          for rr in (root,resume):
+              if not rr: continue
+              soup=BeautifulSoup(rr.text,'html.parser')
+              for tag in soup.find_all(True):
+                  for a in ('src','href','poster','data-src'):
+                      if tag.has_attr(a): add(tag.get(a),rr.url)
+                  for item in (tag.get('srcset') or '').split(','):
+                      if item.strip(): add(item.strip().split()[0],rr.url)
+          while q:
+              u=q.pop(0)
+              if u in by_url: continue
+              rr=fetch(u)
+              if not rr: continue
+              ct=rr.headers.get('content-type') or ''
+              if 'javascript' in ct or u.split('?')[0].endswith(('.js','.mjs','.cjs')):
+                  txt=rr.text
+                  for m in re.findall(r'''["']([^"']+\.(?:js|mjs|cjs|css|json|png|jpe?g|webp|svg|ico|woff2?|ttf|pdf)(?:\?[^"']*)?)["']''',txt,re.I): add(m,rr.url)
+              if 'css' in ct:
+                  for m in re.findall(r'''url\(\s*["']?([^"')]+)''',rr.text,re.I): add(m,rr.url)
+
+          final=list(by_url.values()); final.sort(key=lambda x:(x.get('path',''),x.get('url','')))
+          mf.write_text(json.dumps(final,indent=2),encoding='utf-8')
+          (ROOT/'README.txt').write_text(
+              f'Complete fresh export of {BASE}\n'
+              'deployed/ contains current live HTTP resources captured by browser plus direct fresh fetches of canonical pages/assets/endpoints.\n'
+              'MANIFEST.json records source URL, byte size and SHA-256 for verification.\n'
+              f'Unique live URLs recorded: {len(final)}\n'
+              'Production source maps for the portfolio application were not publicly available, so no guessed/unbundled source code is included.\n',encoding='utf-8')
+          print('FINAL_UNIQUE_URLS=',len(final))
+          PY
+      - name: Build final ZIP
+        run: |
+          rm -f CURRENT_DEPLOYED_PORTFOLIO_COMPLETE.zip CURRENT_DEPLOYED_PORTFOLIO.zip
+          zip -qr CURRENT_DEPLOYED_PORTFOLIO_COMPLETE.zip current-live
+      - name: Upload final ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: CURRENT_DEPLOYED_PORTFOLIO_COMPLETE
+          path: CURRENT_DEPLOYED_PORTFOLIO_COMPLETE.zip
+          retention-days: 30
+          if-no-files-found: error
+      - name: Commit finalized current files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add current-live CURRENT_DEPLOYED_PORTFOLIO_COMPLETE.zip
+          git rm -f CURRENT_DEPLOYED_PORTFOLIO.zip 2>/dev/null || true
+          git commit -m 'Finalize complete current deployed portfolio export' || exit 0
+          git push
