@@ -35,7 +35,6 @@ jobs:
           python - <<'PY'
           import hashlib
           import json
-          import mimetypes
           import os
           import re
           import shutil
@@ -55,22 +54,15 @@ jobs:
 
           session = requests.Session()
           session.headers.update({
-              'User-Agent': 'Mozilla/5.0 (compatible; LiveSiteMirror/1.0)',
+              'User-Agent': 'Mozilla/5.0 (compatible; LiveSiteMirror/1.1)',
               'Accept': '*/*',
           })
 
-          ASSET_EXTS = {
-              '.html','.htm','.js','.mjs','.cjs','.css','.json','.map','.xml','.txt',
-              '.png','.jpg','.jpeg','.webp','.gif','.svg','.ico','.avif',
-              '.woff','.woff2','.ttf','.otf','.eot',
-              '.pdf','.mp4','.webm','.mp3','.wav','.ogg'
-          }
           queue = deque([BASE])
           queued = {BASE}
           seen = set()
           manifest = []
 
-          url_pat = re.compile(r'''(?:(?:https?:)?//[^\s"'<>]+|(?:\.{0,2}/|/)[^\s"'<>\)]+)''')
           css_url_pat = re.compile(r'''url\((?:\s*["']?)([^"')]+)''', re.I)
           js_asset_pat = re.compile(r'''["']([^"']+\.(?:js|mjs|cjs|css|json|map|png|jpe?g|webp|gif|svg|ico|avif|woff2?|ttf|otf|eot|pdf)(?:\?[^"']*)?)["']''', re.I)
 
@@ -78,9 +70,12 @@ jobs:
               raw = (raw or '').strip()
               if not raw or raw.startswith(('data:', 'blob:', 'mailto:', 'tel:', 'javascript:', '#')):
                   return None
-              full = urljoin(parent, raw)
-              full, _ = urldefrag(full)
-              p = urlparse(full)
+              try:
+                  full = urljoin(parent, raw)
+                  full, _ = urldefrag(full)
+                  p = urlparse(full)
+              except Exception:
+                  return None
               if p.scheme not in ('http','https') or p.netloc != BASE_HOST:
                   return None
               return full
@@ -98,7 +93,6 @@ jobs:
                   path += 'index.html'
               rel = path.lstrip('/') or 'index.html'
               dest = OUT / rel
-              # Extensionless HTML routes become route/index.html to avoid collisions.
               if not dest.suffix and 'text/html' in content_type:
                   dest = dest / 'index.html'
               return dest
@@ -118,7 +112,11 @@ jobs:
                   continue
 
               final_url = r.url
-              if urlparse(final_url).netloc != BASE_HOST:
+              try:
+                  final_host = urlparse(final_url).netloc
+              except Exception:
+                  continue
+              if final_host != BASE_HOST:
                   print('REDIRECT OFF HOST', url, '->', final_url)
                   continue
 
@@ -174,14 +172,7 @@ jobs:
               if 'javascript' in ctype or dest.suffix in {'.js','.mjs','.cjs'}:
                   for m in js_asset_pat.findall(text):
                       enqueue(m, final_url)
-                  # Capture root/relative strings likely to be deployed assets/chunks.
-                  for m in url_pat.findall(text):
-                      clean = m.rstrip('.,;')
-                      ext = Path(urlparse(clean).path).suffix.lower()
-                      if ext in ASSET_EXTS:
-                          enqueue(clean, final_url)
 
-          # Record exact fetched deployment map outside the mirrored site tree.
           Path('live-site-manifest.json').write_text(
               json.dumps(sorted(manifest, key=lambda x: x['path']), indent=2),
               encoding='utf-8'
