@@ -1,7 +1,5 @@
-Fresh browser capture from https://project.isonu-x.chatgpt.site
-This package was fetched from the current deployed website.
-Exact HTTP response files are in deployed/.
-Public sourcemaps, if available, are in sourcemaps/.
-Exact source files recovered from sourcesContent, if available, are in recovered-source/.
-Captured resources: 20
-Recovered source files: 0
+Complete fresh export of https://project.isonu-x.chatgpt.site/
+deployed/ contains current live HTTP resources captured by browser plus direct fresh fetches of canonical pages/assets/endpoints.
+MANIFEST.json records source URL, byte size and SHA-256 for verification.
+Unique live URLs recorded: 21
+Production source maps for the portfolio application were not publicly available, so no guessed/unbundled source code is included.

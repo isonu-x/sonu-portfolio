@@ -1,5 +1,13 @@
 [
   {
+    "url": "https://project.isonu-x.chatgpt.site/_next/static/chunks/Icon-D0zGVybZ.js",
+    "path": "deployed/_next/static/chunks/Icon-D0zGVybZ.js",
+    "status": 200,
+    "contentType": "text/javascript",
+    "bytes": 1082,
+    "sha256": "f3426f714786f25ed8a9e72c49b02957d2ff43e926a6c25381c556ef6b2d96d7"
+  },
+  {
     "url": "https://project.isonu-x.chatgpt.site/_next/static/chunks/createLucideIcon-BrNKFXBt.js",
     "path": "deployed/_next/static/chunks/createLucideIcon-BrNKFXBt.js",
     "status": 200,
@@ -14,14 +22,6 @@
     "contentType": "text/javascript",
     "bytes": 190152,
     "sha256": "939d0fabebb3b2f01753bb866b067d8d3384fb06da19f0e6557609d3b1a9f4f7"
-  },
-  {
-    "url": "https://project.isonu-x.chatgpt.site/_next/static/chunks/Icon-D0zGVybZ.js",
-    "path": "deployed/_next/static/chunks/Icon-D0zGVybZ.js",
-    "status": 200,
-    "contentType": "text/javascript",
-    "bytes": 1082,
-    "sha256": "f3426f714786f25ed8a9e72c49b02957d2ff43e926a6c25381c556ef6b2d96d7"
   },
   {
     "url": "https://project.isonu-x.chatgpt.site/_next/static/chunks/index-DIwlCcnu.js",
@@ -104,6 +104,14 @@
     "sha256": "c69000aaea8622daa17018547a6485cc41782796aeb006fbe304af753620d0df"
   },
   {
+    "url": "https://project.isonu-x.chatgpt.site/api/resume",
+    "path": "deployed/api/resume",
+    "status": 200,
+    "contentType": "application/pdf",
+    "bytes": 428718,
+    "sha256": "eb1d6a83a595e7db047c80430f5f35534a3989842546494c4b8ec19c83a0c929"
+  },
+  {
     "url": "https://project.isonu-x.chatgpt.site/cdn-cgi/challenge-platform/h/g/jsd/oneshot/330e41bb475c/0.6829334777246255:1789329912:LXVQBMTKtq51mezFk2YkulyktB6TnM91JF3DbHvgTe8/a3a9edf8090debe4",
     "path": "deployed/cdn-cgi/challenge-platform/h/g/jsd/oneshot/330e41bb475c/0.6829334777246255:1789329912:LXVQBMTKtq51mezFk2YkulyktB6TnM91JF3DbHvgTe8/a3a9edf8090debe4",
     "status": 200,
@@ -120,28 +128,28 @@
     "sha256": "df77058b99e9532b13bb6f6a1d6ab568c40d4146b7c760a6aabc112f988cd19c"
   },
   {
-    "url": "https://project.isonu-x.chatgpt.site/",
-    "path": "deployed/index.html",
+    "url": "https://project.isonu-x.chatgpt.site/favicon.svg",
+    "path": "deployed/favicon.svg",
     "status": 200,
-    "contentType": "text/html; charset=utf-8",
-    "bytes": 44503,
-    "sha256": "da1b0926afef6e148f3e74f5d67cad379a38880bd2ada5a0768806c6ad330642"
+    "contentType": "image/svg+xml",
+    "bytes": 294,
+    "sha256": "0ece96ea2dc5fbb010b175df0ba3b0fd7e72bd617183e47c93346fffca2e5a02"
   },
   {
     "url": "https://project.isonu-x.chatgpt.site/",
     "path": "deployed/index.html",
     "status": 200,
     "contentType": "text/html; charset=utf-8",
-    "bytes": 43565,
-    "sha256": "77edba177a1cc8364beb7c3d3400e7c6f7f8bbadfcae71236e9b6004903e066a"
+    "bytes": 44503,
+    "sha256": "4e4a306e1c6b03cbf6c90bb0c89fdf21ae815348a6e491ff3eacd513690941c7"
   },
   {
     "url": "https://project.isonu-x.chatgpt.site/resume",
     "path": "deployed/resume/index.html",
     "status": 200,
     "contentType": "text/html; charset=utf-8",
-    "bytes": 17197,
-    "sha256": "da94cade84b8640a06af0c65c6bf380d353e7ccbaffebc67405ee9c47997897a"
+    "bytes": 18135,
+    "sha256": "8834ab49597be6266a046b7459162e227feff5d6fdc4a67f76d859d4eb05678d"
   },
   {
     "url": "https://project.isonu-x.chatgpt.site/sonu-banner.png",
