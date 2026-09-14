@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfolio Master Template</title>
+  <meta name="description" content="Reusable portfolio master template for customized client websites." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#home"><span class="brand-mark">S.</span><span id="brandName">Sonu Namdev</span></a>
+    <nav>
+      <a href="#work">Portfolio</a>
+      <a href="#client-system">Client System</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <a class="button small" href="#client-form">Start a project</a>
+  </header>
+
+  <main>
+    <section class="hero" id="home">
+      <div>
+        <p class="eyebrow" id="availability">Open to freelance work</p>
+        <h1><span id="heroName">Sonu Namdev</span><br><em id="tagline">Curiosity. Code. Possibilities.</em></h1>
+        <p class="role" id="role">Aspiring Frontend Developer</p>
+        <p class="intro" id="intro">I turn curiosity into code and ideas into thoughtful web experiences.</p>
+        <div class="actions">
+          <a class="button" href="#work">Explore portfolio</a>
+          <a class="ghost" href="#client-system">How client customization works</a>
+        </div>
+      </div>
+      <aside class="hero-card">
+        <div class="code-top"><span>MASTER_TEMPLATE</span><span>01</span></div>
+        <pre><code>const portfolio = {
+  client: "your-client",
+  content: "data/client.json",
+  design: "customizable",
+  deploy: "ready"
+};</code></pre>
+        <div class="status">Reusable • Responsive • Client-ready</div>
+      </aside>
+    </section>
+
+    <section class="strip"><span>HTML</span><span>CSS</span><span>JavaScript</span><span>React-ready</span><span>Responsive</span><span>Reusable</span></section>
+
+    <section class="section" id="work">
+      <p class="eyebrow">01 / PORTFOLIO</p>
+      <div class="section-head"><h2>A portfolio built to become <em>many portfolios.</em></h2><p>The visual system stays consistent while client content, theme, projects and deployment can be changed independently.</p></div>
+      <div class="cards three">
+        <article class="card"><span class="number">01</span><h3>Responsive Interface</h3><p>Desktop, tablet and mobile layouts with reusable sections and clean typography.</p><div class="tags"><span>350px+</span><span>Mobile</span><span>Desktop</span></div></article>
+        <article class="card"><span class="number">02</span><h3>Client Data Layer</h3><p>Names, role, skills, pricing and other content live in one client data file instead of being scattered through the design.</p><div class="tags"><span>JSON</span><span>Easy edit</span></div></article>
+        <article class="card"><span class="number">03</span><h3>Business Ready</h3><p>Client onboarding, customization, deployment and payment packages are built into the website.</p><div class="tags"><span>Freelance</span><span>Sales</span></div></article>
+      </div>
+    </section>
+
+    <section class="section dark" id="client-system">
+      <p class="eyebrow">02 / CLIENT SYSTEM</p>
+      <div class="section-head"><h2>One master template.<br><em>Seven repeatable steps.</em></h2><p>Use the same workflow for each new client without rebuilding the website from scratch.</p></div>
+      <div class="process-grid">
+        <article><span>01</span><h3>Master Template</h3><p>Keep one clean master version untouched. Every new project starts from this base.</p></article>
+        <article><span>02</span><h3>Client Details</h3><p>Collect name, profession, photo, bio, skills, education, projects, resume, social links, domain and preferred colors.</p></article>
+        <article><span>03</span><h3>Create Client Copy</h3><p>Duplicate the master into a separate client folder or repository so every delivery remains independent.</p></article>
+        <article><span>04</span><h3>Replace Client Data</h3><p>Update the central client data file and replace the profile image/resume instead of editing every section manually.</p></article>
+        <article><span>05</span><h3>Design Customization</h3><p>Change accent color, typography, section order, project cards and selected animations according to the package.</p></article>
+        <article><span>06</span><h3>Deployment</h3><p>Preview, test responsiveness, deploy to a client URL and connect a custom domain when required.</p></article>
+        <article><span>07</span><h3>Payment & Handover</h3><p>Take an advance, deliver a preview, collect the balance and hand over the final files/domain access according to the agreement.</p></article>
+      </div>
+    </section>
+
+    <section class="section" id="client-form">
+      <p class="eyebrow">03 / CLIENT DETAILS</p>
+      <div class="section-head"><h2>Collect everything <em>before customization.</em></h2><p>This form prepares a clean client brief. It does not send data to a server; it creates a copyable summary in the browser.</p></div>
+      <form id="briefForm" class="brief-form">
+        <label>Full name<input name="name" required placeholder="Client name"></label>
+        <label>Profession / role<input name="role" required placeholder="Frontend Developer"></label>
+        <label>Email<input name="email" type="email" placeholder="client@example.com"></label>
+        <label>Location<input name="location" placeholder="City, State"></label>
+        <label>Skills<input name="skills" placeholder="HTML, CSS, JavaScript, React"></label>
+        <label>Preferred color<input name="color" type="color" value="#ff5d3a"></label>
+        <label class="wide">About / short bio<textarea name="bio" rows="4" placeholder="Short introduction..."></textarea></label>
+        <label class="wide">Projects<textarea name="projects" rows="4" placeholder="Project name + description + link"></textarea></label>
+        <label>GitHub<input name="github" placeholder="https://github.com/... "></label>
+        <label>LinkedIn<input name="linkedin" placeholder="https://linkedin.com/in/... "></label>
+        <label>Domain preference<input name="domain" placeholder="name.dev"></label>
+        <label>Package<select name="package"><option>Starter</option><option selected>Custom</option><option>Premium</option></select></label>
+        <button class="button" type="submit">Generate client brief</button>
+      </form>
+      <div class="brief-output" id="briefOutput" hidden><div class="output-top"><h3>Client brief</h3><button id="copyBrief" class="ghost" type="button">Copy brief</button></div><pre id="briefText"></pre></div>
+    </section>
+
+    <section class="section muted" id="customization">
+      <p class="eyebrow">04 / DESIGN CUSTOMIZATION</p>
+      <div class="section-head"><h2>Same foundation.<br><em>Different identity.</em></h2><p>Choose how far the design should move away from the master template.</p></div>
+      <div class="cards three">
+        <article class="card"><h3>Content Swap</h3><p>Name, photo, role, skills, education, projects, resume and links.</p><strong>Fastest delivery</strong></article>
+        <article class="card"><h3>Visual Custom</h3><p>Everything in Content Swap plus brand colors, typography, section styling and visual accents.</p><strong>Most popular</strong></article>
+        <article class="card"><h3>Premium Custom</h3><p>Unique sections, deeper layout changes, animation tuning, SEO and deployment/domain assistance.</p><strong>Higher-value project</strong></article>
+      </div>
+    </section>
+
+    <section class="section dark" id="deployment">
+      <p class="eyebrow">05 / DEPLOYMENT</p>
+      <div class="section-head"><h2>From client brief to <em>live website.</em></h2><p>A simple delivery pipeline keeps projects predictable.</p></div>
+      <div class="timeline"><div><b>1</b><span>Local preview</span></div><div><b>2</b><span>Mobile testing</span></div><div><b>3</b><span>Client approval</span></div><div><b>4</b><span>Production deploy</span></div><div><b>5</b><span>Domain connection</span></div><div><b>6</b><span>Final handover</span></div></div>
+    </section>
+
+    <section class="section" id="pricing">
+      <p class="eyebrow">06 / PAYMENT</p>
+      <div class="section-head"><h2>Clear packages.<br><em>Clear scope.</em></h2><p>Prices can be changed from the client data file for future proposals.</p></div>
+      <div class="pricing-grid">
+        <article class="price-card"><p>Starter</p><h3 id="starterPrice">₹4,999</h3><ul><li>Master design</li><li>Client content replacement</li><li>Responsive setup</li><li>Basic deployment</li></ul><a href="#contact" class="ghost">Choose Starter</a></article>
+        <article class="price-card featured"><span class="badge">RECOMMENDED</span><p>Custom</p><h3 id="customPrice">₹8,999</h3><ul><li>Everything in Starter</li><li>Theme customization</li><li>Project section changes</li><li>Domain assistance</li><li>Basic SEO</li></ul><a href="#contact" class="button">Choose Custom</a></article>
+        <article class="price-card"><p>Premium</p><h3 id="premiumPrice">₹14,999</h3><ul><li>Everything in Custom</li><li>Deeper layout changes</li><li>Extra custom sections</li><li>Priority revisions</li><li>Launch support</li></ul><a href="#contact" class="ghost">Choose Premium</a></article>
+      </div>
+      <p class="payment-note"><strong>Suggested payment:</strong> 50% advance to start • preview/revisions • remaining 50% before final handover.</p>
+    </section>
+
+    <section class="section contact" id="contact">
+      <p class="eyebrow">07 / START A PROJECT</p>
+      <h2>Need a portfolio customized<br><em>for your identity?</em></h2>
+      <p>Use the client-details form above, prepare the brief and start from the master template.</p>
+      <div class="actions"><a class="button" href="#client-form">Fill client details</a><a class="ghost" id="githubLink" href="https://github.com/isonu-x" target="_blank" rel="noreferrer">GitHub</a></div>
+    </section>
+  </main>
+
+  <footer><span id="footerName">Sonu Namdev</span><span>Reusable Portfolio Master Template</span><span id="footerLocation">Gwalior, Madhya Pradesh</span></footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
